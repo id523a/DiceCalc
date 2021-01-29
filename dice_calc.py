@@ -61,7 +61,7 @@ input_lexer = Lexer([
         (r"roll", TokenType.ROLL_COMMAND),
         (r",", TokenType.COMMA),
         (r"ac", TokenType.AC_COMMAND),
-        (r"dc", TokenType.DC_COMMAND),
+        (r"check|dc", TokenType.DC_COMMAND),
         (r"exit|^x", TokenType.EXIT_COMMAND),
         (r"\s+", None)
 ])
