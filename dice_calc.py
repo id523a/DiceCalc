@@ -49,6 +49,7 @@ class TokenType(Enum):
     COMMA = 12
     AC_COMMAND = 13
     DC_COMMAND = 14
+    HELP_COMMAND = 15
 
 input_lexer = Lexer([
         (r"d\s*(?P<sides>[1-9][0-9]*)", TokenType.DIE_NUMBER, lambda m: int(m.group('sides'))),
@@ -59,6 +60,7 @@ input_lexer = Lexer([
         (r"/", TokenType.DIVIDE),
         (r"stat", TokenType.STAT_COMMAND),
         (r"roll", TokenType.ROLL_COMMAND),
+        (r"help", TokenType.HELP_COMMAND),
         (r",", TokenType.COMMA),
         (r"ac", TokenType.AC_COMMAND),
         (r"check|dc", TokenType.DC_COMMAND),
@@ -382,16 +384,96 @@ def check_action(tokens, is_attack_roll):
   Fail:{100*prob_fail:>8.2f}%
 ''')
 
+help_summary = '''ROLLING DICE: help roll
+: 3d6 + 4
+: roll 10 * 1d8
+
+STATISTICS: help stat
+: stat 3d6 + 4
+
+CHECK / SAVING THROW ANALYSIS: help dc / help check
+: dc5 d20-1
+: check 12, 3d6 + 3
+
+ATTACK ROLL ANALYSIS: help ac
+: ac 10 d20+4
+
+TO EXIT:
+: exit
+: x
+'''
+
+help_topics = {
+    TokenType.ROLL_COMMAND: '''ROLLING DICE
+: [dice]
+: roll [dice]
+  Performs a dice roll, specified in RPG dice notation.
+  Supports +, -, * and /. Division always rounds down.
+  Operations are always performed from left to right.
+: d20
+: 3d6 + 4
+: roll 10 * 1d8
+''',
+    TokenType.STAT_COMMAND: '''STATISTICS
+: stat [dice]
+  Calculates the full probability distribution for any
+  dice roll, and outputs the mean, standard deviation,
+  median, quartiles, etc.
+: stat d20
+: stat 3d6 + 4
+''',
+    TokenType.DC_COMMAND: '''CHECK / SAVING THROW ANALYSIS
+: check [thres][,] [dice]
+: dc [thres][,] [dice]
+  Calculates the probability that a dice roll will equal
+  or exceed a particular threshold. Nat. 1s and nat. 20s
+  are not given special treatment.
+: dc 10, d20 + 5
+: dc5 d20-1
+: check 12, 3d6 + 3
+''',
+    TokenType.AC_COMMAND: '''ATTACK ROLL ANALYSIS
+: ac [thres][,] [dice]
+  Calculates the probability that an attack roll will
+  succeed or fail against a particular Armor Class.
+  Takes into account the effects of nat. 1s and 20s.
+  In cases where the dice-roll is not a d20, the lowest
+  possible roll is treated as automatic failure and the
+  highest possible is treated as a critical hit.
+: ac 10 d20+4
+: ac21 d20
+'''
+}
+
+roll_help = help_topics[TokenType.ROLL_COMMAND]
+for topic in [
+    TokenType.DIE_NUMBER,
+    TokenType.NUMBER,
+    TokenType.PLUS,
+    TokenType.MINUS,
+    TokenType.MULTIPLY,
+    TokenType.DIVIDE]:
+    help_topics[topic] = roll_help
+
+
+def help_action(tokens):
+    if len(tokens) > 0 and tokens[0].token_type in help_topics:
+        print(help_topics[tokens[0].token_type])
+    else:
+        print(help_summary)
+
 special_actions = {
     TokenType.STAT_COMMAND: stat_action,
     TokenType.ROLL_COMMAND: roll_action,
+    TokenType.HELP_COMMAND: help_action,
     TokenType.AC_COMMAND: lambda tok: check_action(tok, is_attack_roll=True),
     TokenType.DC_COMMAND: lambda tok: check_action(tok, is_attack_roll=False)
 }
 prev_input_text = 'exit'
+print("DiceCalc")
 while True:
     try:
-        input_text = input("ROLL: ").lower().strip()
+        input_text = input(": ").lower().strip()
         if input_text == '':
             input_text = prev_input_text
         prev_input_text = input_text
@@ -408,5 +490,6 @@ while True:
         current_action(tokens)
     except (ParseError, LexError) as e:
         print(e)
+        print('Type "help" (without quotes) for help.')
     except ZeroDivisionError:
         print("Error: division by zero")
